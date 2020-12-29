@@ -7,8 +7,8 @@ import io.netty.buffer.ByteBuf;
 
 class LT11280FTools {
 
-    public static final byte[] SYSTEM_TYPES = {0x01};
-    public static final byte[] COMMAND_TYPES = {0x10,0x03};
+    public static final byte[] SYSTEM_TYPES = {0x01, 0x02, 0x04};
+    public static final byte[] COMMAND_TYPES = {0x10, 0x03};
 
     public static boolean checkFrame(byte[] data) {
         byte[] crc = new byte[]{data[data.length - 2], data[data.length - 1]};
@@ -17,8 +17,8 @@ class LT11280FTools {
     }
 
     public static boolean checkSystemType(byte system) {
-        for (byte item:SYSTEM_TYPES) {
-            if(item == system){
+        for (byte item : SYSTEM_TYPES) {
+            if (item == system) {
                 return true;
             }
         }
@@ -26,8 +26,8 @@ class LT11280FTools {
     }
 
     public static boolean checkCommandType(byte command) {
-        for (byte item:COMMAND_TYPES) {
-            if(item == command){
+        for (byte item : COMMAND_TYPES) {
+            if (item == command) {
                 return true;
             }
         }
@@ -128,7 +128,7 @@ class LT11280FTools {
                 }
             }
         }
-        return short2BytesLE((short)crc);
+        return short2BytesLE((short) crc);
     }
 
     public static int indexOf(ByteBuf haystack, byte[] needle) {

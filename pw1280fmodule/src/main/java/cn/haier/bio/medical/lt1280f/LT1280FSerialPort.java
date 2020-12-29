@@ -17,7 +17,7 @@ import io.netty.buffer.Unpooled;
 class LT1280FSerialPort implements PWSerialPortListener {
     private ByteBuf buffer;
     private HandlerThread thread;
-    private LTB760AGHandler handler;
+    private LT1280FHandler handler;
     private PWSerialPortHelper helper;
 
     private byte system = 0x00;
@@ -88,9 +88,9 @@ class LT1280FSerialPort implements PWSerialPortListener {
 
     private void createHandler() {
         if (this.thread == null && this.handler == null) {
-            this.thread = new HandlerThread("LTBSerialPort");
+            this.thread = new HandlerThread("LT1280FSerialPort");
             this.thread.start();
-            this.handler = new LTB760AGHandler(this.thread.getLooper());
+            this.handler = new LT1280FHandler(this.thread.getLooper());
         }
     }
 
@@ -121,7 +121,7 @@ class LT1280FSerialPort implements PWSerialPortListener {
         }
         this.helper.writeAndFlush(data);
         if (null != this.listener && null != this.listener.get()) {
-            this.listener.get().onLT1280FPrint("LTBSerialPort Send:" + LT11280FTools.bytes2HexString(data, true, ", "));
+            this.listener.get().onLT1280FPrint("LT1280FSerialPort Send:" + LT11280FTools.bytes2HexString(data, true, ", "));
         }
     }
 
@@ -138,38 +138,89 @@ class LT1280FSerialPort implements PWSerialPortListener {
     }
 
     private boolean ignorePackage() {
-        boolean result = false;
         if (this.system == 0x00) {
             for (byte item : LT11280FTools.SYSTEM_TYPES) {
                 byte[] bytes = new byte[]{item, 0x10, 0x40, 0x1F};
                 int index = LT11280FTools.indexOf(this.buffer, bytes);
                 if (index != -1) {
-                    result = true;
                     byte[] data = new byte[index];
                     this.buffer.readBytes(data, 0, data.length);
                     this.buffer.discardReadBytes();
                     if (null != this.listener && null != this.listener.get()) {
-                        this.listener.get().onLT1280FPrint("LTBSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
+                        this.listener.get().onLT1280FPrint("LT1280FSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
                     }
-                    break;
+                    return this.processBytesBuffer();
                 }
             }
         } else {
             byte[] bytes = new byte[]{this.system, 0x10, 0x40, 0x1F};
             int index = LT11280FTools.indexOf(this.buffer, bytes);
             if (index != -1) {
-                result = true;
                 byte[] data = new byte[index];
                 this.buffer.readBytes(data, 0, data.length);
                 this.buffer.discardReadBytes();
                 if (null != this.listener && null != this.listener.get()) {
-                    this.listener.get().onLT1280FPrint("LTBSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
+                    this.listener.get().onLT1280FPrint("LT1280FSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
                 }
+                return this.processBytesBuffer();
             }
         }
-        return result;
+        return false;
     }
 
+
+    private boolean processBytesBuffer() {
+        if (this.buffer.readableBytes() < 4) {
+            return true;
+        }
+
+        byte system = this.buffer.getByte(0);
+        byte command = this.buffer.getByte(1);
+        if (!LT11280FTools.checkSystemType(system) || !LT11280FTools.checkCommandType(command)) {
+            return this.ignorePackage();
+        }
+        int lenth = (command == 0x10) ? 109 : 8;
+        if (this.buffer.readableBytes() < lenth) {
+            return true;
+        }
+        this.buffer.markReaderIndex();
+        byte[] data = new byte[lenth];
+        byte model = this.buffer.getByte(2);
+        this.buffer.readBytes(data, 0, lenth);
+        if (!LT11280FTools.checkFrame(data)) {
+            this.buffer.resetReaderIndex();
+            //当前包不合法 丢掉正常的包头以免重复判断
+            this.buffer.skipBytes(4);
+            this.buffer.discardReadBytes();
+            return this.ignorePackage();
+        }
+        this.buffer.discardReadBytes();
+        if (!this.ready) {
+            this.ready = true;
+            if (null != this.listener && null != this.listener.get()) {
+                this.listener.get().onLT1280FReady();
+            }
+        }
+        if (this.system != system) {
+            this.system = system;
+            if (null != this.listener && null != this.listener.get()) {
+                this.listener.get().onLT1280FSystemChanged(this.system);
+            }
+        }
+        if (null != this.listener && null != this.listener.get()) {
+            this.listener.get().onLT1280FPrint("LT1280FSerialPort Recv:" + LT11280FTools.bytes2HexString(data, true, ", "));
+        }
+        this.switchWriteModel();
+        Message msg = Message.obtain();
+        msg.what = command;
+        if (command == 0x10) {
+            msg.obj = data;
+        } else {
+            msg.arg1 = model & 0xFF;
+        }
+        this.handler.sendMessage(msg);
+        return true;
+    }
 
     @Override
     public void onConnected(PWSerialPortHelper helper) {
@@ -212,72 +263,22 @@ class LT1280FSerialPort implements PWSerialPortListener {
             return;
         }
         if (null != this.listener && null != this.listener.get()) {
-            this.listener.get().onLT1280FPrint("LTBSerialPort state changed: " + state.name());
+            this.listener.get().onLT1280FPrint("LT1280FSerialPort state changed: " + state.name());
         }
     }
 
     @Override
-    public void onByteReceived(PWSerialPortHelper helper, byte[] buffer, int length) throws IOException {
+    public boolean onByteReceived(PWSerialPortHelper helper, byte[] buffer, int length) throws IOException {
         if (!this.isInitialized() || !helper.equals(this.helper)) {
-            return;
+            return false;
         }
         this.buffer.writeBytes(buffer, 0, length);
-        while (this.buffer.readableBytes() >= 2) {
-            byte system = this.buffer.getByte(0);
-            byte command = this.buffer.getByte(1);
-            if (!LT11280FTools.checkSystemType(system) || !LT11280FTools.checkCommandType(command)) {
-                if (this.ignorePackage()) {
-                    continue;
-                } else {
-                    break;
-                }
-            }
-            int lenth = (command == 0x10) ? 109 : 8;
-            if (this.buffer.readableBytes() < lenth) {
-                break;
-            }
-            this.buffer.markReaderIndex();
-            byte[] data = new byte[lenth];
-            byte model = this.buffer.getByte(2);
-            this.buffer.readBytes(data, 0, lenth);
-            if (!LT11280FTools.checkFrame(data)) {
-                this.buffer.resetReaderIndex();
-                //当前包不合法 丢掉正常的包头以免重复判断
-                this.buffer.skipBytes(4);
-                this.buffer.discardReadBytes();
-                continue;
-            }
-            this.buffer.discardReadBytes();
-            if (!this.ready) {
-                this.ready = true;
-                if (null != this.listener && null != this.listener.get()) {
-                    this.listener.get().onLT1280FReady();
-                }
-            }
-            if (this.system != system) {
-                this.system = system;
-                if (null != this.listener && null != this.listener.get()) {
-                    this.listener.get().onLT1280FSystemChanged(this.system);
-                }
-            }
-            if (null != this.listener && null != this.listener.get()) {
-                this.listener.get().onLT1280FPrint("LTBSerialPort Recv:" + LT11280FTools.bytes2HexString(data, true, ", "));
-            }
-            this.switchWriteModel();
-            Message msg = Message.obtain();
-            msg.what = command;
-            if (command == 0x10) {
-                msg.obj = data;
-            } else {
-                msg.arg1 = model & 0xFF;
-            }
-            this.handler.sendMessage(msg);
-        }
+        return this.processBytesBuffer();
     }
 
 
-    private class LTB760AGHandler extends Handler {
-        public LTB760AGHandler(Looper looper) {
+    private class LT1280FHandler extends Handler {
+        public LT1280FHandler(Looper looper) {
             super(looper);
         }
 
