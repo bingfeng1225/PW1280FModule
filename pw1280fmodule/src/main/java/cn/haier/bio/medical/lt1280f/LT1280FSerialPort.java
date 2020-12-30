@@ -72,7 +72,7 @@ class LT1280FSerialPort implements PWSerialPortListener {
     private void createHelper(String path) {
         if (this.helper == null) {
             this.helper = new PWSerialPortHelper("LTBSerialPort");
-            this.helper.setTimeout(2);
+            this.helper.setTimeout(5);
             this.helper.setPath(path);
             this.helper.setBaudrate(9600);
             this.helper.init(this);
