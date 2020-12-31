@@ -151,10 +151,58 @@ class LT1280FSerialPort implements PWSerialPortListener {
                     }
                     return this.processBytesBuffer();
                 }
+
+                bytes = new byte[]{item, 0x03, (byte)0xA4, 0x1F};
+                index = LT11280FTools.indexOf(this.buffer, bytes);
+                if (index != -1) {
+                    byte[] data = new byte[index];
+                    this.buffer.readBytes(data, 0, data.length);
+                    this.buffer.discardReadBytes();
+                    if (null != this.listener && null != this.listener.get()) {
+                        this.listener.get().onLT1280FPrint("LT1280FSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
+                    }
+                    return this.processBytesBuffer();
+                }
+
+                bytes = new byte[]{item, 0x03, (byte)0xD6, 0x1F};
+                index = LT11280FTools.indexOf(this.buffer, bytes);
+                if (index != -1) {
+                    byte[] data = new byte[index];
+                    this.buffer.readBytes(data, 0, data.length);
+                    this.buffer.discardReadBytes();
+                    if (null != this.listener && null != this.listener.get()) {
+                        this.listener.get().onLT1280FPrint("LT1280FSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
+                    }
+                    return this.processBytesBuffer();
+                }
             }
         } else {
             byte[] bytes = new byte[]{this.system, 0x10, 0x40, 0x1F};
             int index = LT11280FTools.indexOf(this.buffer, bytes);
+            if (index != -1) {
+                byte[] data = new byte[index];
+                this.buffer.readBytes(data, 0, data.length);
+                this.buffer.discardReadBytes();
+                if (null != this.listener && null != this.listener.get()) {
+                    this.listener.get().onLT1280FPrint("LT1280FSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
+                }
+                return this.processBytesBuffer();
+            }
+
+            bytes = new byte[]{this.system, 0x03, (byte) 0xA4, 0x1F};
+            index = LT11280FTools.indexOf(this.buffer, bytes);
+            if (index != -1) {
+                byte[] data = new byte[index];
+                this.buffer.readBytes(data, 0, data.length);
+                this.buffer.discardReadBytes();
+                if (null != this.listener && null != this.listener.get()) {
+                    this.listener.get().onLT1280FPrint("LT1280FSerialPort 指令丢弃:" + LT11280FTools.bytes2HexString(data, true, ", "));
+                }
+                return this.processBytesBuffer();
+            }
+
+            bytes = new byte[]{this.system, 0x03, (byte) 0xD6, 0x1F};
+            index = LT11280FTools.indexOf(this.buffer, bytes);
             if (index != -1) {
                 byte[] data = new byte[index];
                 this.buffer.readBytes(data, 0, data.length);
